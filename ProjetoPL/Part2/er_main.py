@@ -1,102 +1,121 @@
 import json
-import argparse
-
-class Node:
-    def __init__(self, op, args=None):
-        self.op = op
-        self.args = args if args is not None else []
-
-def parse_json(filename):
-    with open(filename, 'r') as file:
-        return {'op': json.load(file)}
-
-def convert_to_afnd(node):
-    if isinstance(node, list):
-        if len(node) == 1:
-            return node[0]
+import sys
+ 
+def novoEstado(estados):
+    #Gera um novo estado e o adiciona à lista de estados.
+    novo_estado = f'q{len(estados)}'
+    estados.append(novo_estado)
+    return novo_estado
+ 
+def prcSimbolo(simbolo, simbolos, estados, transicoes):
+   #Processa um símbolo, criando estados de início e fim e uma transição para o símbolo.
+    estado_inicio = novoEstado(estados)
+    estado_fim = novoEstado(estados)
+    transicoes.append((estado_inicio, simbolo, estado_fim))
+    if simbolo not in simbolos:
+        simbolos.append(simbolo)
+    return estado_inicio, estado_fim
+ 
+def prcEpsilon(estados, transicoes):
+    #Processa uma transição epsilon, criando estados de início e fim e uma transição epsilon entre eles.
+    estado_inicio = novoEstado(estados)
+    estado_fim = novoEstado(estados)
+    transicoes.append((estado_inicio, '', estado_fim))
+    return estado_inicio, estado_fim
+ 
+def prcAlt(args, estados, simbolos, transicoes):
+    #Processa uma alternância (|), conectando os argumentos com transições epsilon a novos estados de início e fim.
+    estado_inicio = novoEstado(estados)
+    estado_fim = novoEstado(estados)
+    for arg in args:
+        inicio_arg, fim_arg = converterER(arg, estados, simbolos, transicoes)
+        transicoes.append((estado_inicio, '', inicio_arg))
+        transicoes.append((fim_arg, '', estado_fim))
+    return estado_inicio, estado_fim
+ 
+def prcSeq(args, estados, simbolos, transicoes):
+   #Processa uma sequência, conectando cada argumento com transições epsilon, exceto o primeiro.
+    inicio_seq, fim_seq = None, None
+    for arg in args:
+        inicio_arg, fim_arg = converterER(arg, estados, simbolos, transicoes)
+        if inicio_seq is None:
+            inicio_seq = inicio_arg
         else:
-            return node
+            transicoes.append((fim_seq, '', inicio_arg))
+        fim_seq = fim_arg
+    return inicio_seq, fim_seq
+ 
+def prcKle(args, estados, simbolos, transicoes):
+    #Processa o fechamento de Kleene (*), permitindo repetições do argumento.
+    estado_inicio = novoEstado(estados)
+    estado_fim = novoEstado(estados)
+    inicio_arg, fim_arg = converterER(args[0], estados, simbolos, transicoes)
+    transicoes.append((estado_inicio, '', inicio_arg))
+    transicoes.append((fim_arg, '', estado_fim))
+    transicoes.append((fim_arg, '', inicio_arg))
+    transicoes.append((estado_inicio, '', estado_fim))
+    return estado_inicio, estado_fim
+
+def prcTrans(args, estados, simbolos, transicoes):
+    #Processa uma transição, conectando cada argumento com transições epsilon.
+    inicio_trans, fim_trans = None, None
+    for arg in args:
+        inicio_arg, fim_arg = converterER(arg, estados, simbolos, transicoes)
+        if inicio_trans is None:
+            inicio_trans = inicio_arg
+        else:
+            transicoes.append((fim_trans, '', inicio_arg))
+        fim_trans = fim_arg
+    return inicio_trans, fim_trans
+ 
+def converterER(er, estados, simbolos, transicoes):
+    #Converte a expressão regular em componentes do AFND, baseando-se no tipo de operação.
+    if 'simb' in er:
+        return prcSimbolo(er['simb'], simbolos, estados, transicoes)
+    elif er['op'] == 'alt':
+        return prcAlt(er['args'], estados, simbolos, transicoes)
+    elif er['op'] == 'seq':
+        return prcSeq(er['args'], estados, simbolos, transicoes)
+    elif er['op'] == 'kle':
+        return prcKle(er['args'], estados, simbolos, transicoes)
+    elif er['op'] == 'trans':  # Adicionando a função prcTrans
+        return prcTrans(er['args'], estados, simbolos, transicoes)
     else:
-        if node.op == "alt":
-            return {"type": "alt", "args": [convert_to_afnd(arg) for arg in node.args]}
-        elif node.op == "seq":
-            return {"type": "seq", "args": [convert_to_afnd(arg) for arg in node.args]}
-        elif node.op == "kle":
-            return {"type": "kle", "arg": convert_to_afnd(node.args[0])}
-        elif isinstance(node, str):
-            return {"type": "symbol", "value": node}
-        else:
-            raise ValueError("Invalid node type")
-
-def build_afnd(expression):
-    expression = Node(**expression)  # Convertendo para Node
-    symbols = set()
-    states = set()
-    transitions = []
-    start_state = 'q0'
-    final_states = set()
-
-    def generate_state():
-        nonlocal states
-        new_state = f'q{len(states)}'
-        states.add(new_state)
-        return new_state
-
-    def process_node(node):
-        nonlocal symbols, transitions, final_states
-        if isinstance(node, dict) and 'op' in node:
-            if node['op'] == "alt":
-                state = generate_state()
-                transitions.append({'from': state, 'to': process_node(node['args'][0]), 'symbol': 'epsilon'})
-                transitions.append({'from': state, 'to': process_node(node['args'][1]), 'symbol': 'epsilon'})
-                return state
-            elif node['op'] == "seq":
-                state1 = process_node(node['args'][0])
-                state2 = process_node(node['args'][1])
-                transitions.append({'from': state1, 'to': state2, 'symbol': 'epsilon'})
-                return state1
-            elif node['op'] == "kle":
-                state1 = generate_state()
-                state2 = process_node(node['args'][0])
-                transitions.append({'from': state1, 'to': state2, 'symbol': 'epsilon'})
-                transitions.append({'from': state2, 'to': state1, 'symbol': 'epsilon'})
-                return state1
-        elif isinstance(node, str):
-            symbols.add(node)
-            return node
-        else:
-            raise ValueError("Invalid node type")
-
-    final_state = process_node(expression)
-    final_states.add(final_state)
-
-    return {
-        'V': list(symbols),
-        'Q': list(states),
-        'delta': transitions,
-        'q0': start_state,
-        'F': list(final_states)
+        raise ValueError("Operador inválido na expressão regular")
+ 
+def convertERToAFND(expression):
+#Converte uma expressão regular (dicionário) em um AFND (dicionário).
+    estados, simbolos, transicoes = [], [], []
+    inicio, fim = converterER(expression, estados, simbolos, transicoes)
+    afnd = {
+        'V': simbolos,
+        'Q': estados,
+        'delta': {estado: {} for estado in estados},
+        'q0': inicio,
+        'F': [fim]
     }
+    for transicao in transicoes:
+        inicio, simbolo, fim = transicao
+        if simbolo not in afnd['delta'][inicio]:
+            afnd['delta'][inicio][simbolo] = []
+        afnd['delta'][inicio][simbolo].append(fim)
+    return afnd
 
-def save_afnd_to_json(afnd, filename):
-    with open(filename, 'w') as file:
-        json.dump(afnd, file, indent=4)
-
-def main():
-    parser = argparse.ArgumentParser(description='Convert regular expression to AFND.')
-    parser.add_argument('input', help='Input JSON file containing regular expression')
-    parser.add_argument('--output', help='Output JSON file containing AFND')
-    args = parser.parse_args()
-
-    input_filename = args.input
-    output_filename = args.output
-
-    expression = parse_json(input_filename)
-    afnd = build_afnd(expression)
-
-    if output_filename:
-        save_afnd_to_json(afnd, output_filename)
-        print(f'AFND saved to {output_filename}')
-    else:
-        print(json.dumps(afnd, indent=4))
-
+#Ponto de entrada do script; lê uma ER de um arquivo e escreve o AFND correspondente em outro.
+if len(sys.argv) != 4 or sys.argv[2] != "--output":
+    print("Uso: python script.py <entrada.er.json> --output <saida.afnd.json>")
+    sys.exit(1)
+ 
+entrada_er = sys.argv[1]
+saida_afnd = sys.argv[3]
+ 
+with open(entrada_er, 'r') as f:
+    expressao_regular = json.load(f)
+ 
+    afnd = convertERToAFND(expressao_regular)
+ 
+with open(saida_afnd, 'w') as f:
+    json.dump(afnd, f, indent=4)
+ 
+print(f"AFND gerado com sucesso em {saida_afnd}")
+ 
