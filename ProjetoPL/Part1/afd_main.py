@@ -11,10 +11,15 @@ def load_afd_from_json(file_path):
 # Função para imprimir o digraph do autômato
 def print_digraph(afd_definition):
     print("digraph {")
+    # Define os estados finais como estados duplamente circulares
     print("node [shape = doublecircle]; " + ', '.join(afd_definition["F"]) + ";")
+     # Define o estado inicial como um ponto
     print("node [shape = point]; initial;")
+    # Define os estados restantes como círculos
     print("node [shape = circle];")
+    # Define a transição do estado inicial
     print("initial->" + afd_definition["q0"] + ";")
+    # Define as transições entre os estados
     for state, transitions in afd_definition["delta"].items():
         for symbol, next_state in transitions.items():
             print(state + "->" + next_state + "[label=\"" + symbol + "\"];")
@@ -66,25 +71,24 @@ def validate_afd_definition(afd_definition):
                 raise ValueError("O estado '" + next_state + "' nas transições delta não está presente na definição dos estados Q.")
 
 
-if __name__ == "__main__":
-     # Verifica se há argumentos suficientes
-    if len(sys.argv) < 3:
-        print("Usage: python afd-main.py <arquivo.json> [-graphviz] [-rec '<palavra>']")
-        sys.exit(1)
+# Verifica se há argumentos suficientes
+if len(sys.argv) < 3:
+    print("Usage: python afd-main.py <arquivo.json> [-graphviz] [-rec '<palavra>']")
+    sys.exit(1)
 
-    # Carrega a definição do autômato do arquivo JSON
-    file_path = sys.argv[1]
-    afd_definition = load_afd_from_json(file_path)
+# Carrega a definição do autômato do arquivo JSON
+file_path = sys.argv[1]
+afd_definition = load_afd_from_json(file_path)
 
-    # Valida a definição do autômato
-    validate_afd_definition(afd_definition)
+# Valida a definição do autômato
+validate_afd_definition(afd_definition)
 
-    # Imprime o digraph do autômato, se a opção -graphviz estiver presente
-    if "-graphviz" in sys.argv:
+# Imprime o digraph do autômato, se a opção -graphviz estiver presente
+if "-graphviz" in sys.argv:
         print_digraph(afd_definition)
 
-    # Reconhece a palavra fornecida, se a opção -rec estiver presente
-    if "-rec" in sys.argv:
+# Reconhece a palavra fornecida, se a opção -rec estiver presente
+if "-rec" in sys.argv:
         word_index = sys.argv.index("-rec") + 1
         word = sys.argv[word_index]
         recognized, path = recognize_word(afd_definition, word)
