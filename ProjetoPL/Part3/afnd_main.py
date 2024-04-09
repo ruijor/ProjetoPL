@@ -169,7 +169,3 @@ def main():
 
     else:
         print("Erro: Modo inválido. Por favor, use '-graphviz' para gerar código Graphviz ou '-output' para converter AFND para AFD.")
-
-# Chamada para a função principal
-if __name__ == "__main__":
-    main()
