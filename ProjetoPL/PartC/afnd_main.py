@@ -76,15 +76,15 @@ def convert_afnd_to_afd(afnd):
         'F': [list(states) for states in afd_final_states]  # Converte os estados finais para listas
     }
 
-# Função para gerar o código Graphviz a partir do AFD
-def generate_graphviz(afd):
-    lines = ['digraph afd {']
+# Função para gerar o código Graphviz a partir do AFND
+def generate_graphviz(afnd):
+    lines = ['digraph afnd {']
     lines.append('    node [shape = doublecircle]; ' + '; '.join([' '.join(states) for states in afd['F']]) + ';')
     lines.append('    node [shape = point]; qi;')
     lines.append('    node [shape = circle];')
 
     # Adicionando transições
-    for state, transitions in afd['delta'].items():
+    for state, transitions in afnd['delta'].items():
         for symbol, next_states in transitions.items():
             for next_state in next_states:
                 lines.append('    {} -> {} [label="{}"];'.format(state, next_state, symbol))
@@ -122,7 +122,7 @@ if mode == '-graphviz':
     # Convertendo AFND para AFD
     afd = convert_afnd_to_afd(afnd)
     # Gerando código Graphviz
-    graphviz_code = generate_graphviz(afd)
+    graphviz_code = generate_graphviz(afnd)
     print(graphviz_code)
 
 elif mode == '-output':
